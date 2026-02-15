@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Slack Archive - Home{% endblock %}
+
+{% block header %}
+<div class="main-header">
+  <h2>Welcome to the Slack Archive</h2>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+  {% for type_label, type_key in [('Channels', 'channel'), ('Private Channels', 'group'), ('Direct Messages', 'dm')] %}
+    {% set items = grouped.get(type_key, []) %}
+    {% if items %}
+    <h3 style="margin: 20px 0 10px; font-size: 16px;">{{ type_label }} ({{ items|length }})</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px;">
+      {% for ch in items %}
+      <a href="/channel/{{ ch.id }}" style="display: block; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: inherit; transition: box-shadow 0.15s;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-weight: 600;">
+            {% if type_key == 'channel' %}#{% elif type_key == 'dm' %}💬{% else %}🔒{% endif %}
+            {{ ch.name }}
+          </span>
+          <span style="font-size: 12px; color: #616061; margin-left: auto;">{{ ch.msg_count }} msgs</span>
+        </div>
+        {% if ch.purpose %}
+        <div style="font-size: 13px; color: #616061; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ ch.purpose }}</div>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

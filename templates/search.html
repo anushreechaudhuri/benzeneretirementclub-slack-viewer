@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Search: {{ q }} - Slack Archive{% endblock %}
+
+{% block header %}
+<div class="search-header">
+  <h2>Search results for "{{ q }}"</h2>
+  {% if q %}
+  <div class="search-tabs">
+    <a class="search-tab{% if search_type == 'all' %} active{% endif %}" href="/search?q={{ q }}&type=all">
+      All ({{ msg_count + file_count }})
+    </a>
+    <a class="search-tab{% if search_type == 'messages' %} active{% endif %}" href="/search?q={{ q }}&type=messages">
+      Messages ({{ msg_count }})
+    </a>
+    <a class="search-tab{% if search_type == 'files' %} active{% endif %}" href="/search?q={{ q }}&type=files">
+      Files ({{ file_count }})
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% set users = get_users() %}
+
+{% if not q %}
+<div class="empty-state">
+  <h3>Search the archive</h3>
+  <p>Enter a search term to find messages and files.</p>
+</div>
+{% elif not messages and not files %}
+<div class="empty-state">
+  <h3>No results found</h3>
+  <p>Try different keywords or check the spelling.</p>
+</div>
+{% else %}
+
+  {# Messages #}
+  {% if messages %}
+  {% for msg in messages %}
+    {% set u = users.get(msg.user_id, {}) %}
+    {% set display_name = u.get('display_name') or u.get('real_name') or msg.user_id %}
+    <div class="search-result">
+      <div class="sr-channel">
+        {% if msg.channel_type == 'channel' %}#{% elif msg.channel_type == 'dm' %}💬{% else %}🔒{% endif %}
+        <a href="/channel/{{ msg.channel_id }}">{{ msg.channel_name }}</a>
+        · <strong>{{ display_name }}</strong>
+        · {{ msg.ts|ts_to_date }}
+      </div>
+      <div class="sr-snippet">{{ msg.snippet|safe }}</div>
+      <div class="sr-meta">
+        <a href="/channel/{{ msg.channel_id }}/{{ msg.ts|ts_to_datetime|string|truncate(10, True, '') }}#msg-{{ msg.ts }}">View in context →</a>
+        {% if msg.thread_ts and msg.thread_ts != msg.ts %}
+          · <a href="/thread/{{ msg.channel_id }}/{{ msg.thread_ts }}">View thread</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  {% endif %}
+
+  {# Files #}
+  {% if files %}
+  {% for f in files %}
+    <div class="search-result">
+      <div class="file-result">
+        {% if is_image(f.mimetype) and f.local_path and file_exists(f.local_path) %}
+          <img class="fr-thumb" src="/file/{{ f.local_path }}" alt="" loading="lazy">
+        {% else %}
+          <div class="fr-thumb">📎</div>
+        {% endif %}
+        <div class="fr-info">
+          <div>
+            <a href="/channel/{{ f.channel_id }}">{{ f.channel_name }}</a>
+            · {{ f.message_ts|ts_to_date }}
+          </div>
+          <div style="font-weight: 600;">
+            {% if f.local_path and file_exists(f.local_path) %}
+              <a href="/file/{{ f.local_path }}" target="_blank">{{ f.name or f.title or 'file' }}</a>
+            {% else %}
+              {{ f.name or f.title or 'file' }}
+            {% endif %}
+          </div>
+          <div class="sr-snippet" style="font-size: 13px;">{{ f.snippet|safe }}</div>
+          <div style="font-size: 12px; color: #616061;">
+            {{ f.filetype|upper }} · {{ (f.size / 1024)|round(1) }} KB
+            · <a href="/channel/{{ f.channel_id }}/{{ f.message_ts|ts_to_datetime|string|truncate(10, True, '') }}#msg-{{ f.message_ts }}">View in context →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+  {% endif %}
+
+  {# Pagination #}
+  {% set total = msg_count + file_count %}
+  {% if total > per_page %}
+  <div class="pagination">
+    {% if page > 1 %}
+      <a href="/search?q={{ q }}&type={{ search_type }}&page={{ page - 1 }}">← Previous</a>
+    {% endif %}
+    <span style="padding: 6px 16px; font-size: 14px; color: #616061;">
+      Page {{ page }} of {{ ((total - 1) // per_page) + 1 }}
+    </span>
+    {% if page * per_page < total %}
+      <a href="/search?q={{ q }}&type={{ search_type }}&page={{ page + 1 }}">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

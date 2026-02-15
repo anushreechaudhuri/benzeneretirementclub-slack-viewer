@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Thread in {{ channel.name }} - Slack Archive{% endblock %}
+
+{% block header %}
+<div class="main-header">
+  <h2>
+    <a href="/channel/{{ channel.id }}" style="color: inherit;">
+      {% if channel.type == 'channel' %}#{% elif channel.type == 'dm' %}💬{% else %}🔒{% endif %} {{ channel.name }}
+    </a>
+    › Thread
+  </h2>
+</div>
+{% endblock %}
+
+{% block content %}
+{% set users = get_users() %}
+
+{% if parent %}
+  {% set u = users.get(parent.user_id, {}) %}
+  {% set display_name = u.get('display_name') or u.get('real_name') or parent.user_id %}
+  {% set avatar_url = u.get('avatar_url', '') %}
+  {% set color = u.get('color', '999999') %}
+
+  <div class="message" style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
+    <div class="msg-avatar" style="background-color: #{{ color }};">
+      {% if avatar_url %}
+        <img src="{{ avatar_url }}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='{{ display_name[:1]|upper }}';">
+      {% else %}
+        {{ display_name[:1]|upper }}
+      {% endif %}
+    </div>
+    <div class="msg-body">
+      <div class="msg-header">
+        <span class="msg-author">{{ display_name }}</span>
+        <span class="msg-time">{{ parent.ts|ts_to_date }} at {{ parent.ts|ts_to_time }}</span>
+      </div>
+      <div class="msg-text">{{ parent.text|slack_render }}</div>
+
+      {# File attachments on parent #}
+      {% if parent.files_json %}
+        {% set files = json_loads(parent.files_json) %}
+        <div class="file-attachments">
+          {% for f in files %}
+            {% if f.get('mode') != 'tombstone' %}
+              {% set local = f.get('local_path', '') %}
+              {% set full_local = channel.dir_name + '/' + local if local else '' %}
+              <div class="file-attachment">
+                {% if is_image(f.get('mimetype', '')) and full_local and file_exists(full_local) %}
+                  <a href="/file/{{ full_local }}" target="_blank">
+                    <img src="/file/{{ full_local }}" alt="{{ f.get('name', 'image') }}" loading="lazy">
+                  </a>
+                {% elif full_local and file_exists(full_local) %}
+                  <div class="file-download">
+                    <span class="file-icon">📎</span>
+                    <a class="file-name" href="/file/{{ full_local }}" target="_blank">{{ f.get('name', 'file') }}</a>
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {# Reactions on parent #}
+      {% if parent.reactions_json %}
+        {% set reactions = json_loads(parent.reactions_json) %}
+        <div class="reactions">
+          {% for r in reactions %}
+            <span class="reaction">
+              <span class="r-emoji">{{ reaction_emoji(r.name) }}</span>
+              <span class="r-count">{{ r.count }}</span>
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="thread-divider">{{ replies|length }} repl{{ 'y' if replies|length == 1 else 'ies' }}</div>
+
+  {% for msg in replies %}
+    {% set u = users.get(msg.user_id, {}) %}
+    {% set display_name = u.get('display_name') or u.get('real_name') or msg.user_id %}
+    {% set avatar_url = u.get('avatar_url', '') %}
+    {% set color = u.get('color', '999999') %}
+
+    <div class="message">
+      <div class="msg-avatar" style="background-color: #{{ color }};">
+        {% if avatar_url %}
+          <img src="{{ avatar_url }}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='{{ display_name[:1]|upper }}';">
+        {% else %}
+          {{ display_name[:1]|upper }}
+        {% endif %}
+      </div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author">{{ display_name }}</span>
+          <span class="msg-time">{{ msg.ts|ts_to_time }}</span>
+        </div>
+        <div class="msg-text">{{ msg.text|slack_render }}</div>
+
+        {# File attachments on reply #}
+        {% if msg.files_json %}
+          {% set files = json_loads(msg.files_json) %}
+          <div class="file-attachments">
+            {% for f in files %}
+              {% if f.get('mode') != 'tombstone' %}
+                {% set local = f.get('local_path', '') %}
+                {% set full_local = channel.dir_name + '/' + local if local else '' %}
+                <div class="file-attachment">
+                  {% if is_image(f.get('mimetype', '')) and full_local and file_exists(full_local) %}
+                    <a href="/file/{{ full_local }}" target="_blank">
+                      <img src="/file/{{ full_local }}" alt="{{ f.get('name', 'image') }}" loading="lazy">
+                    </a>
+                  {% elif full_local and file_exists(full_local) %}
+                    <div class="file-download">
+                      <span class="file-icon">📎</span>
+                      <a class="file-name" href="/file/{{ full_local }}" target="_blank">{{ f.get('name', 'file') }}</a>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {# Reactions on reply #}
+        {% if msg.reactions_json %}
+          {% set reactions = json_loads(msg.reactions_json) %}
+          <div class="reactions">
+            {% for r in reactions %}
+              <span class="reaction">
+                <span class="r-emoji">{{ reaction_emoji(r.name) }}</span>
+                <span class="r-count">{{ r.count }}</span>
+              </span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+
+{% else %}
+  <div class="empty-state">
+    <h3>Thread not found</h3>
+    <p><a href="/channel/{{ channel.id }}">Back to channel</a></p>
+  </div>
+{% endif %}
+
+<div style="padding: 12px 20px; border-top: 1px solid var(--border);">
+  <a href="/channel/{{ channel.id }}{% if parent %}/{{ parent.ts|ts_to_datetime|string|truncate(10, True, '') }}#msg-{{ parent.ts }}{% endif %}">← Back to {{ channel.name }}</a>
+</div>
+
+<script>
+document.body.dataset.channelId = "{{ channel.id }}";
+</script>
+{% endblock %}

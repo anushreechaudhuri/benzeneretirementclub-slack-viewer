@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}{{ channel.name }} - Slack Archive{% endblock %}
+
+{% block header %}
+<div class="main-header">
+  <h2>{% if channel.type == 'channel' %}#{% elif channel.type == 'dm' %}💬{% else %}🔒{% endif %} {{ channel.name }}</h2>
+  {% if channel.topic %}
+  <span class="topic">{{ channel.topic }}</span>
+  {% endif %}
+</div>
+{% if current_date %}
+<div class="date-nav">
+  {% if prev_date %}
+    <a href="/channel/{{ channel.id }}/{{ prev_date }}">← {{ prev_date }}</a>
+  {% endif %}
+  <span class="current-date">{{ current_date }}</span>
+  {% if next_date %}
+    <a href="/channel/{{ channel.id }}/{{ next_date }}">{{ next_date }} →</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<body data-channel-id="{{ channel.id }}">
+{% set users = get_users() %}
+
+{% if not messages %}
+<div class="empty-state">
+  <h3>No messages</h3>
+  <p>This channel doesn't have any messages{% if current_date %} on {{ current_date }}{% endif %}.</p>
+</div>
+{% else %}
+  {% for msg in messages %}
+    {% set u = users.get(msg.user_id, {}) %}
+    {% set display_name = u.get('display_name') or u.get('real_name') or msg.user_id %}
+    {% set avatar_url = u.get('avatar_url', '') %}
+    {% set color = u.get('color', '999999') %}
+
+    {% if msg.subtype in ('channel_join', 'channel_leave', 'channel_purpose', 'channel_topic', 'channel_name', 'channel_archive', 'group_join', 'group_leave', 'group_purpose', 'group_topic') %}
+      <div class="system-msg">{{ msg.text|slack_render }}</div>
+    {% else %}
+      <div class="message" id="msg-{{ msg.ts }}">
+        <div class="msg-avatar" style="background-color: #{{ color }};">
+          {% if avatar_url %}
+            <img src="{{ avatar_url }}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='{{ display_name[:1]|upper }}';">
+          {% else %}
+            {{ display_name[:1]|upper }}
+          {% endif %}
+        </div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author">{{ display_name }}</span>
+            <span class="msg-time">{{ msg.ts|ts_to_time }}</span>
+          </div>
+          <div class="msg-text">{{ msg.text|slack_render }}</div>
+
+          {# File attachments #}
+          {% if msg.files_json %}
+            {% set files = json_loads(msg.files_json) %}
+            <div class="file-attachments">
+              {% for f in files %}
+                {% if f.get('mode') != 'tombstone' %}
+                  {% set local = f.get('local_path', '') %}
+                  {% set full_local = channel.dir_name + '/' + local if local else '' %}
+                  <div class="file-attachment">
+                    {% if is_image(f.get('mimetype', '')) and full_local and file_exists(full_local) %}
+                      <a href="/file/{{ full_local }}" target="_blank">
+                        <img src="/file/{{ full_local }}" alt="{{ f.get('name', 'image') }}" loading="lazy">
+                      </a>
+                    {% elif is_video(f.get('mimetype', '')) and full_local and file_exists(full_local) %}
+                      <video controls preload="metadata">
+                        <source src="/file/{{ full_local }}" type="{{ f.get('mimetype', '') }}">
+                      </video>
+                    {% elif is_audio(f.get('mimetype', '')) and full_local and file_exists(full_local) %}
+                      <audio controls preload="metadata">
+                        <source src="/file/{{ full_local }}" type="{{ f.get('mimetype', '') }}">
+                      </audio>
+                    {% elif full_local and file_exists(full_local) %}
+                      <div class="file-download">
+                        <span class="file-icon">📎</span>
+                        <div>
+                          <a class="file-name" href="/file/{{ full_local }}" target="_blank">{{ f.get('name', 'file') }}</a>
+                          {% if f.get('size') %}
+                            <div class="file-size">{{ (f.size / 1024)|round(1) }} KB</div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% elif f.get('name') %}
+                      <div class="file-download">
+                        <span class="file-icon">📎</span>
+                        <div>
+                          <span class="file-name" style="color: #999;">{{ f.get('name', 'file') }} (not downloaded)</span>
+                        </div>
+                      </div>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {# Reactions #}
+          {% if msg.reactions_json %}
+            {% set reactions = json_loads(msg.reactions_json) %}
+            <div class="reactions">
+              {% for r in reactions %}
+                <span class="reaction">
+                  <span class="r-emoji">{{ reaction_emoji(r.name) }}</span>
+                  <span class="r-count">{{ r.count }}</span>
+                </span>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {# Thread link #}
+          {% if msg.reply_count and msg.reply_count > 0 %}
+            <a class="thread-link" href="/thread/{{ channel.id }}/{{ msg.ts }}">
+              💬 {{ msg.reply_count }} repl{{ 'y' if msg.reply_count == 1 else 'ies' }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{# Date picker at bottom #}
+{% if dates|length > 1 %}
+<div style="padding: 16px 20px; border-top: 1px solid var(--border); text-align: center;">
+  <details>
+    <summary style="cursor: pointer; font-size: 13px; color: #616061;">Jump to date ({{ dates|length }} days with messages)</summary>
+    <div style="margin-top: 8px; max-height: 200px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">
+      {% for d in dates %}
+        <a href="/channel/{{ channel.id }}/{{ d }}" style="font-size: 12px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px;{% if d == current_date %} background: var(--link); color: #fff; border-color: var(--link);{% endif %}">{{ d }}</a>
+      {% endfor %}
+    </div>
+  </details>
+</div>
+{% endif %}
+
+<script>
+document.body.dataset.channelId = "{{ channel.id }}";
+// Scroll to anchored message (e.g. coming back from thread view)
+if (window.location.hash) {
+  const el = document.querySelector(window.location.hash);
+  if (el) {
+    el.scrollIntoView({behavior: 'instant', block: 'center'});
+    el.style.background = '#FFF8DC';
+    setTimeout(() => { el.style.background = ''; }, 2000);
+  }
+}
+</script>
+{% endblock %}

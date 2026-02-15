@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Slack Archive{% endblock %}</title>
+<style>
+:root {
+  --sidebar-bg: #3F0E40;
+  --sidebar-hover: #350d36;
+  --sidebar-active: #1164A3;
+  --sidebar-text: #CFB3CF;
+  --sidebar-text-bright: #FFFFFF;
+  --main-bg: #FFFFFF;
+  --main-text: #1D1C1D;
+  --border: #E1E1E1;
+  --hover-bg: #F8F8F8;
+  --mention-bg: #E8F5FA;
+  --mention-text: #1264A3;
+  --link: #1264A3;
+  --code-bg: #F4F4F4;
+  --reaction-bg: #F0F0F0;
+  --reaction-border: #E0E0E0;
+  --mark-bg: #FFF3B0;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px; line-height: 1.46; color: var(--main-text);
+  display: flex; height: 100vh; overflow: hidden;
+}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+mark { background: var(--mark-bg); padding: 1px 2px; border-radius: 2px; }
+
+/* Sidebar */
+.sidebar {
+  width: 260px; min-width: 260px; background: var(--sidebar-bg);
+  color: var(--sidebar-text); display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.sidebar-header h1 {
+  font-size: 17px; font-weight: 700; color: var(--sidebar-text-bright);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-search {
+  padding: 8px 16px;
+}
+.sidebar-search input {
+  width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.1); color: #fff; font-size: 14px; outline: none;
+}
+.sidebar-search input::placeholder { color: rgba(255,255,255,0.5); }
+.sidebar-search input:focus { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); }
+.sidebar-nav {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+.sidebar-nav::-webkit-scrollbar { width: 6px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+.nav-section { padding: 8px 16px 4px; font-size: 13px; font-weight: 600; color: var(--sidebar-text); text-transform: uppercase; letter-spacing: 0.5px; }
+.nav-item {
+  display: flex; align-items: center; padding: 3px 16px; cursor: pointer;
+  color: var(--sidebar-text); text-decoration: none; font-size: 15px;
+  border-radius: 0; transition: background 0.1s;
+}
+.nav-item:hover { background: var(--sidebar-hover); text-decoration: none; color: var(--sidebar-text-bright); }
+.nav-item.active { background: var(--sidebar-active); color: #fff; }
+.nav-item .ch-prefix { opacity: 0.7; margin-right: 4px; font-size: 14px; }
+.nav-item .ch-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item .ch-count {
+  font-size: 12px; background: rgba(255,255,255,0.15); padding: 1px 6px;
+  border-radius: 10px; margin-left: 6px; min-width: 20px; text-align: center;
+}
+
+/* Main content */
+.main {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--main-bg);
+}
+.main-header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; min-height: 52px;
+}
+.main-header h2 { font-size: 18px; font-weight: 700; }
+.main-header .topic { font-size: 13px; color: #616061; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.main-content {
+  flex: 1; overflow-y: auto; padding: 0;
+}
+.main-content::-webkit-scrollbar { width: 8px; }
+.main-content::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+/* Date navigation */
+.date-nav {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
+  background: #FAFAFA; font-size: 14px;
+}
+.date-nav a { font-weight: 500; }
+.date-nav .current-date { font-weight: 600; }
+
+/* Messages */
+.message {
+  display: flex; gap: 10px; padding: 8px 20px; transition: background 0.1s;
+  position: relative;
+}
+.message:hover { background: var(--hover-bg); }
+.message + .message { margin-top: 0; }
+.msg-avatar {
+  width: 36px; height: 36px; border-radius: 4px; flex-shrink: 0;
+  background: #DDD; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff; overflow: hidden;
+}
+.msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.msg-body { flex: 1; min-width: 0; }
+.msg-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.msg-author { font-weight: 700; font-size: 15px; }
+.msg-time { font-size: 12px; color: #616061; }
+.msg-text { word-wrap: break-word; overflow-wrap: break-word; }
+.msg-text .mention { background: var(--mention-bg); color: var(--mention-text); padding: 0 3px; border-radius: 3px; font-weight: 500; }
+.msg-text code { background: var(--code-bg); padding: 2px 4px; border-radius: 3px; font-size: 13px; font-family: "SF Mono", Monaco, Menlo, monospace; }
+.msg-text pre.code-block { background: var(--code-bg); padding: 8px 12px; border-radius: 4px; overflow-x: auto; margin: 4px 0; font-size: 13px; font-family: "SF Mono", Monaco, Menlo, monospace; }
+.msg-text .emoji { font-size: 18px; }
+.msg-text .emoji-text { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 13px; }
+
+/* Reactions */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.reaction {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  background: var(--reaction-bg); border: 1px solid var(--reaction-border);
+  border-radius: 12px; font-size: 12px; cursor: default;
+}
+.reaction .r-emoji { font-size: 16px; }
+.reaction .r-count { font-weight: 600; color: var(--link); }
+
+/* Files */
+.file-attachments { margin-top: 6px; }
+.file-attachment {
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  margin-top: 4px; max-width: 520px;
+}
+.file-attachment img {
+  max-width: 100%; max-height: 360px; display: block; cursor: pointer;
+}
+.file-attachment video { max-width: 100%; max-height: 400px; display: block; }
+.file-attachment audio { width: 100%; display: block; padding: 8px; }
+.file-download {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 14px;
+}
+.file-download .file-icon { font-size: 20px; }
+.file-download .file-name { font-weight: 500; color: var(--link); }
+.file-download .file-size { color: #616061; font-size: 12px; }
+
+/* Thread link */
+.thread-link {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+  font-size: 13px; color: var(--link); font-weight: 500; cursor: pointer;
+  padding: 2px 0;
+}
+.thread-link:hover { text-decoration: underline; }
+
+/* System messages */
+.system-msg {
+  padding: 4px 20px; font-size: 13px; color: #616061; font-style: italic;
+}
+
+/* Search */
+.search-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.search-header h2 { font-size: 18px; margin-bottom: 8px; }
+.search-tabs { display: flex; gap: 0; }
+.search-tab {
+  padding: 6px 16px; font-size: 14px; font-weight: 500; color: #616061;
+  border: 1px solid var(--border); cursor: pointer; text-decoration: none;
+  background: #FAFAFA;
+}
+.search-tab:first-child { border-radius: 6px 0 0 6px; }
+.search-tab:last-child { border-radius: 0 6px 6px 0; }
+.search-tab.active { background: var(--link); color: #fff; border-color: var(--link); }
+.search-tab:hover:not(.active) { background: #f0f0f0; text-decoration: none; }
+.search-result {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+}
+.search-result:hover { background: var(--hover-bg); }
+.search-result .sr-channel { font-size: 12px; color: #616061; margin-bottom: 2px; }
+.search-result .sr-snippet { font-size: 14px; }
+.search-result .sr-meta { font-size: 12px; color: #616061; margin-top: 2px; }
+
+.file-result { display: flex; gap: 12px; align-items: center; }
+.file-result .fr-thumb { width: 64px; height: 64px; border-radius: 4px; object-fit: cover; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.file-result .fr-info { flex: 1; }
+
+/* Thread view */
+.thread-header { padding: 12px 20px; border-bottom: 1px solid var(--border); background: #FAFAFA; }
+.thread-header h2 { font-size: 16px; }
+.thread-divider { padding: 8px 20px; font-size: 12px; color: #616061; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.thread-divider::before, .thread-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Empty states */
+.empty-state { text-align: center; padding: 60px 20px; color: #616061; }
+.empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--main-text); }
+
+/* Date divider in messages */
+.date-divider {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px;
+}
+.date-divider::before, .date-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.date-divider span {
+  font-size: 13px; font-weight: 700; white-space: nowrap;
+  background: #fff; padding: 4px 12px; border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+/* Pagination */
+.pagination { display: flex; justify-content: center; gap: 12px; padding: 16px; }
+.pagination a { padding: 6px 16px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+.pagination a:hover { background: var(--hover-bg); text-decoration: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 220px; min-width: 220px; }
+  .message { padding: 8px 12px; }
+}
+</style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <h1>benzeneretirementclub</h1>
+  </div>
+  <div class="sidebar-search">
+    <form action="/search" method="get">
+      <input type="text" name="q" placeholder="Search messages & files..." value="{{ request.args.get('q', '') }}">
+    </form>
+  </div>
+  <div class="sidebar-nav" id="sidebar-nav">
+    {% set channels = [] %}
+    {% set dms = [] %}
+    {% set groups = [] %}
+    {% set db = g.db if g.db is defined else none %}
+    {# Channel list is loaded via JS or passed by context processor #}
+  </div>
+</nav>
+<div class="main">
+  {% block header %}{% endblock %}
+  <div class="main-content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+<script>
+// Load sidebar channels via fetch
+fetch('/api/channels')
+  .then(r => r.json())
+  .then(data => {
+    const nav = document.getElementById('sidebar-nav');
+    let html = '';
+    const sections = [
+      {key: 'channel', label: 'Channels', prefix: '#'},
+      {key: 'group', label: 'Private Channels', prefix: '🔒'},
+      {key: 'dm', label: 'Direct Messages', prefix: '💬'},
+    ];
+    const currentChannel = document.body.dataset.channelId || '';
+    for (const sec of sections) {
+      const items = data[sec.key] || [];
+      if (items.length === 0) continue;
+      html += `<div class="nav-section">${sec.label}</div>`;
+      for (const ch of items) {
+        const active = ch.id === currentChannel ? ' active' : '';
+        html += `<a class="nav-item${active}" href="/channel/${ch.id}">
+          <span class="ch-prefix">${sec.prefix}</span>
+          <span class="ch-name">${ch.name}</span>
+          <span class="ch-count">${ch.msg_count}</span>
+        </a>`;
+      }
+    }
+    nav.innerHTML = html;
+  });
+</script>
+</body>
+</html>
