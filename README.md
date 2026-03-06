@@ -47,3 +47,64 @@ python3 viewer.py
 - Thread view with replies
 - Reactions display
 - Date navigation with jump-to-date picker
+
+## Image Classification & S3 Sharing
+
+Bulk-classify images from Slack/Discord exports using a VLM (Gemini Flash Lite) and upload matches to S3 for sharing.
+
+### How it works
+1. Scans all images in the export (skips thumbnails <10KB)
+2. Resizes to 512px for fast/cheap VLM classification (~$0.11 for 5,000 images)
+3. Sends each to Gemini with a configurable YES/NO prompt
+4. Uploads matching images to S3
+5. Optionally creates a read-only IAM user for sharing access
+
+### Setup
+
+```bash
+pip3 install google-genai boto3 pillow
+```
+
+Create a `.env` file:
+```
+GEMINI_API_KEY=your_google_ai_key
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+AWS_DEFAULT_REGION=us-east-1
+S3_BUCKET=your-bucket-name
+S3_PREFIX=shared-photos/
+CLASSIFICATION_PROMPT=Does this image contain a person? Answer ONLY 'YES' or 'NO'.
+```
+
+### Slack images
+
+```bash
+python3 classify_images.py classify   # classify with VLM
+python3 classify_images.py upload     # upload matches to S3
+python3 classify_images.py iam        # create read-only IAM user for sharing
+python3 classify_images.py all        # do everything
+```
+
+Supports resume — if interrupted, re-run and it picks up from `classify_progress.json`.
+
+### Discord images
+
+Requires Docker and [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter):
+
+```bash
+docker pull tyrrrz/discordchatexporter
+```
+
+Add to `.env`:
+```
+DISCORD_TOKEN=your_discord_user_token
+DISCORD_GUILD_ID=your_server_id
+S3_PREFIX_DISCORD=shared-photos-discord/
+```
+
+```bash
+python3 classify_discord_images.py export     # export from Discord
+python3 classify_discord_images.py classify   # classify with VLM
+python3 classify_discord_images.py upload     # upload matches to S3
+python3 classify_discord_images.py all        # do everything
+```
